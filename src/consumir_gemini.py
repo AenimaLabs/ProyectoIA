@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODELO = "gemini-flash-latest"
+# MODELO = "gemini-flash-latest"
+MODELO = "gemini-3.6-flash"
 URL_BASE = f"https://generativelanguage.googleapis.com/v1beta/models/"
 API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -64,12 +65,40 @@ def procesar_respuesta(datos): #Gemini
 def obtener_dato_de_prueba(pregunta):
     url, body = crear_solicitud(pregunta)
     datos = enviar_peticion(url, body)
+    costo = calcular_costos(datos, 0.00000075, 0.00000375)  # Ejemplo de precios por token
+    print(f"Costo estimado de la solicitud: ${costo:.6f} USD")
     return procesar_respuesta(datos)
+
+#funcion calcular costos
+#def calcular_costos(datps:dict, precio_entrada:float, precio_salida:float)
+def calcular_costos(datos, precio_entrada, precio_salida):
+    uso = datos["usageMetadata"]
+
+    # uso = {
+    #     "promptTokenCount": 35,
+    #     "candidatesTokenCount": 310,
+    #     "totalTokenCount": 1041,
+    #     "promptTokensDetails": [
+    #         {
+    #             "modality": "TEXT",
+    #             "tokenCount": 35
+    #         }
+    #     ],
+    #     "thoughtsTokenCount": 696,
+    #     "serviceTier": "standard"
+    # },
+    tokens_entrada = uso["promptTokenCount"]
+    tokens_salida = uso["candidatesTokenCount"]
+    tokens_razonamiento = uso["thoughtsTokenCount"]
+    costo = (tokens_entrada * precio_entrada) + (tokens_salida * precio_salida) + (tokens_razonamiento * precio_salida)
+    return costo
 
 try:
     print(obtener_dato_de_prueba("Dame una frase motivacional para empezar el día"))
 except (ValueError, RuntimeError) as e:
     print(f"Error: {e}")
+
+
 
 # def obtener_dato_de_prueba(pregunta):
 #     api_key = os.getenv("GEMINI_API_KEY")
@@ -92,7 +121,6 @@ except (ValueError, RuntimeError) as e:
 #     datos = respuesta.json()
 #     return datos["candidates"][0]["content"]["parts"][0]["text"]
 
-try:
-    print(obtener_dato_de_prueba("Dame una frase motivacional para empezar el día"))
-except (ValueError, RuntimeError) as e:
-    print(f"Error: {e}")
+
+
+
