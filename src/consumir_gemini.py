@@ -13,9 +13,16 @@ modelo = "gemini-3.6-flash"
 URL_BASE = f"https://generativelanguage.googleapis.com/v1beta/models/"
 API_KEY = os.getenv("GEMINI_API_KEY")
 
+SYSTEM_INSTRUCTIONS_PEDAGOGICO = (
+    "Eres un asistente pedagógico de programación en Python. "
+    "Evalúa funciones entregadas por estudiantes usando preguntas guía "
+    "para que detecten casos borde y buenas prácticas por sí mismos. "
+    "No entregues el código resuelto y mantén respuestas breves y claras."
+)
+
 
 #función para crear la solicitud
-def crear_solicitud(pregunta, modelo):
+def crear_solicitud(pregunta, modelo, system_instructions):
     if not pregunta or not pregunta.strip():
         raise ValueError("La pregunta no puede estar vacía.")
 
@@ -25,6 +32,13 @@ def crear_solicitud(pregunta, modelo):
 
     url = f"{URL_BASE}{modelo}:generateContent?key={API_KEY}"
     body = {
+        "systemInstruction": {
+            "parts": [
+                {
+                    "text": system_instructions
+                }
+            ]
+        },
         "contents": [
             {
                 "parts": [
@@ -39,6 +53,7 @@ def crear_solicitud(pregunta, modelo):
 
 #función envía la petición
 #añadir manejo de errores para la petición
+
 def enviar_peticion(url, body):
     """Envía una solicitud POST a la API de Gemini y devuelve la respuesta en formato JSON."""
 
@@ -75,10 +90,12 @@ def procesar_respuesta(datos): #Gemini
 
 #función principal que obtiene el dato de prueba
 #añadir manejo de errores para la respuesta
-def obtener_dato_de_prueba(pregunta, modelo = modelo):
+def obtener_dato_de_prueba(pregunta):
     """Ejecuta una petición de prueba, mide su latencia y costo, y devuelve la respuesta."""
+
+    system_instructions = SYSTEM_INSTRUCTIONS_PEDAGOGICO
     
-    url, body = crear_solicitud(pregunta, modelo)
+    url, body = crear_solicitud(pregunta, modelo, system_instructions)
 
     #contador de tiempo para medir la duración de la solicitud
     inicio = time.perf_counter()
@@ -123,11 +140,11 @@ def calcular_costos(datos, precio_entrada, precio_salida):
     print(f"Tokens de razonamiento: {tokens_razonamiento}")
     return costo
 
-# try:
+try:
    
-#     print(obtener_dato_de_prueba("Dame una frase motivacional para empezar el día"))
-# except (ValueError, RuntimeError) as e:
-#     print(f"Error: {e}")
+    print(obtener_dato_de_prueba("Dame una frase motivacional para empezar el día"))
+except (ValueError, RuntimeError) as e:
+    print(f"Error: {e}")
 
 
 
