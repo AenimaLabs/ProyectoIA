@@ -5,11 +5,14 @@ from dotenv import load_dotenv
 
 import time
 
+import json
+import re
+
 
 load_dotenv()
 
 # MODELO = "gemini-flash-latest"
-modelo = "gemini-3.6-flash"
+modelo = "gemini-3.1-flash-lite"
 URL_BASE = f"https://generativelanguage.googleapis.com/v1beta/models/"
 API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -22,7 +25,7 @@ SYSTEM_INSTRUCTIONS_PEDAGOGICO = (
 
 
 #función para crear la solicitud
-def crear_solicitud(pregunta, modelo, system_instructions):
+def crear_solicitud(pregunta, modelo, system_instructions, response_schema=None):
     if not pregunta or not pregunta.strip():
         raise ValueError("La pregunta no puede estar vacía.")
 
@@ -47,8 +50,16 @@ def crear_solicitud(pregunta, modelo, system_instructions):
                     }
                 ]
             }
-        ]
+        ],
+       
     }
+
+    if response_schema is not None:
+        body["generationConfig"] = {
+            "responseMimeType": "application/json",
+            "responseSchema": response_schema
+        }
+
     return url, body
 
 #función envía la petición
@@ -93,9 +104,19 @@ def procesar_respuesta(datos): #Gemini
 def obtener_dato_de_prueba(pregunta):
     """Ejecuta una petición de prueba, mide su latencia y costo, y devuelve la respuesta."""
 
+    response_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "categoria": {"type": "STRING"},
+            "confianza": {"type": "NUMBER"},
+        },
+        "required": ["categoria", "confianza"]
+    }
+
+
     system_instructions = SYSTEM_INSTRUCTIONS_PEDAGOGICO
     
-    url, body = crear_solicitud(pregunta, modelo, system_instructions)
+    url, body = crear_solicitud(pregunta, modelo, system_instructions, response_schema)
 
     #contador de tiempo para medir la duración de la solicitud
     inicio = time.perf_counter()
@@ -108,9 +129,11 @@ def obtener_dato_de_prueba(pregunta):
 
     costo = calcular_costos(datos, 0.00000075, 0.00000375)  # Ejemplo de precios por token
     print(f"Costo estimado de la solicitud: ${costo:.6f} USD")
-    
 
-    return procesar_respuesta(datos)
+    texto = procesar_respuesta(datos)
+    datos_formateados = parsear_respuesta_json(texto,  claves_requeridas=["categoria", "confianza"])
+    
+    return datos_formateados
 
 #funcion calcular costos
 #def calcular_costos(datps:dict, precio_entrada:float, precio_salida:float)
@@ -139,6 +162,33 @@ def calcular_costos(datos, precio_entrada, precio_salida):
     print(f"Tokens de salida: {tokens_salida}")
     print(f"Tokens de razonamiento: {tokens_razonamiento}")
     return costo
+
+def parsear_respuesta_json(texto_respuesta, claves_requeridas=None):
+    """Limpia un texto con JSON (incluso si viene en bloque Markdown),
+    lo convierte a diccionario y valida que existan las claves requeridas.
+    claves_requeridas: lista de claves que deben estar presentes en el JSON.
+    """
+
+    texto_limpio = texto_respuesta.strip()
+    texto_limpio = re.sub(r"^```(?:json)?\s*", "", texto_limpio)
+    texto_limpio = re.sub(r"\s*```$", "", texto_limpio)
+    texto_limpio = texto_limpio.strip()
+
+    try:
+        datos = json.loads(texto_limpio)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"La respuesta del modelo no es un JSON válido: {e}") from e
+
+    if not isinstance(datos, dict):
+        raise ValueError("La respuesta JSON debe ser un objeto/diccionario.")
+
+    if claves_requeridas:
+        faltantes = [clave for clave in claves_requeridas if clave not in datos]
+        if faltantes:
+            raise ValueError(f"Faltan claves requeridas en la respuesta JSON: {', '.join(faltantes)}")
+        
+
+    return datos
 
 try:
    
